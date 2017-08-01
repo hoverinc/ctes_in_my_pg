@@ -1,19 +1,3 @@
-require "ctes_in_my_pg/version"
-require "active_record/relation"
-
-#require 'byebug'
-
-module ActiveRecord
-  class Relation
-    class Merger # :nodoc:
-      def normal_values
-        NORMAL_VALUES + [:with]
-      end
-    end
-  end
-end
-
-
 module ActiveRecord
   class Relation
     # WithChain objects act as placeholder for queries in which #with does not have any parameter.
@@ -28,6 +12,27 @@ module ActiveRecord
         @scope.with_values += args
         @scope.recursive_value = true
         @scope
+      end
+    end
+
+    class WhereChain
+      private
+
+      def left_column(rel)
+        @scope.klass.columns_hash[rel.left.name] || @scope.klass.columns_hash[rel.left.relation.name]
+      end
+
+      def build_where_chain(opts, rest, &block)
+        where_clause = @scope.send(:where_clause_factory).build(opts, rest)
+        @scope.references!(PredicateBuilder.references(opts)) if Hash === opts
+        @scope.where_clause += where_clause.modified_predicates(&block)
+        @scope
+      end
+    end
+
+    class WhereClause
+      def modified_predicates(&block)
+        WhereClause.new(predicates.map(&block), binds)
       end
     end
 
